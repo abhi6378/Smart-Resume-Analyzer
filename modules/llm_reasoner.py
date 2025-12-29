@@ -16,7 +16,7 @@ import json
 # 1. Configure Gemini
 # -----------------------------------
 def configure_gemini(api_key: str):
-    genai.configure(api_key="AIzaSyBdNt3X6s5t1VaNr6fWuO_IC2GBLvxGlA0")
+    genai.configure(api_key="")
 
 
 # -----------------------------------
