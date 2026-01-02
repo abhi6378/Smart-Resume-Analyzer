@@ -60,18 +60,40 @@ if "gemini_configured" not in st.session_state:
 # ---------------------------------------------------
 if choice == "🏠 Home":
     st.title("🧠 Smart Resume Analyzer")
-    st.markdown("""
-    **AI-powered Applicant Tracking System (ATS)**  
-    Built using NLP, Semantic Search, and Gemini LLM.
 
-    ### Features
-    - Resume parsing (PDF)
-    - Skill matching & ranking
-    - AI reasoning for missing skills
+    st.markdown("### 🔑 Gemini API Configuration (Required for AI Reasoning)")
+
+    api_key = st.text_input(
+        "Enter Gemini API Key",
+        type="password",
+        value=st.session_state.gemini_api_key,
+        help="Required for skill reasoning and course recommendations"
+    )
+
+    if api_key and not st.session_state.gemini_configured:
+        try:
+            llm_reasoner.configure_gemini(api_key.strip())
+            st.session_state.gemini_api_key = api_key.strip()
+            st.session_state.gemini_configured = True
+            st.success("Gemini API configured successfully ✅")
+        except Exception as e:
+            st.session_state.gemini_configured = False
+            st.error(f"Invalid Gemini API key: {e}")
+
+    if not st.session_state.gemini_configured:
+        st.warning("⚠️ Please configure Gemini API key to continue.")
+    else:
+        st.success("System ready for analysis 🚀")
+
+    st.markdown("""
+    **Features Enabled**
+    - Resume parsing
+    - Semantic skill matching
+    - AI reasoning
     - Course recommendations
-    - Batch resume processing
-    - Professional PDF reports
+    - PDF reports
     """)
+
 
 
 # ---------------------------------------------------
@@ -125,6 +147,10 @@ elif choice == "📤 Upload Resumes":
 # ---------------------------------------------------
 # PAGE: ANALYZE CANDIDATES
 # ---------------------------------------------------
+if not st.session_state.gemini_configured:
+    st.error("Gemini API key not configured. Please go to Home page.")
+    st.stop()
+
 elif choice == "📊 Analyze Candidates":
     st.title("📊 Analyze Candidates")
 
@@ -136,9 +162,10 @@ elif choice == "📊 Analyze Candidates":
     st.session_state.jd_text = jd_text
 
     semantic_weight = st.slider(
-        "Semantic Weight (importance of meaning vs keywords)",
-        0.0, 1.0, 0.6, 0.05
-    )
+       "Semantic Weight (Higher = More Accurate)",
+        0.5, 1.0, 0.85, 0.05
+)
+
 
     if st.button("▶️ Run Analysis"):
         if not st.session_state.resumes:
@@ -178,8 +205,11 @@ elif choice == "📊 Analyze Candidates":
                 missing = eval_result["missing_skills"]
 
                 reasoning = {}
-                if missing and st.session_state.gemini_configured:
-                    reasoning = llm_reasoner.get_skill_reasoning(matched, missing)
+                if missing:
+                    reasoning = llm_reasoner.get_skill_reasoning(
+                       matched_skills=matched,
+                       missing_skills=missing
+                    )
 
                 name = parsed["name"] or os.path.basename(resume_path)
                 pdf_path = os.path.join(
