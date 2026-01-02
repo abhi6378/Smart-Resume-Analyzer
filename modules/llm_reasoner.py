@@ -1,84 +1,72 @@
-"""
-llm_reasoner.py
+# modules/llm_reasoner.py
 
-Uses Gemini 2.5 Flash-Lite to:
-- Map missing skills to related skills
-- Explain missing skills
-- Provide course recommendations input (later paired with Coursera API)
-"""
-
-from typing import List, Dict
 import google.generativeai as genai
-import json
+
+# Global model reference
+_MODEL = None
 
 
-# -----------------------------------
-# 1. Configure Gemini
-# -----------------------------------
 def configure_gemini(api_key: str):
-    genai.configure(api_key="")
+    """
+    Configure Gemini API using frontend-provided key.
+    Must be called BEFORE any reasoning.
+    """
+    global _MODEL
+
+    genai.configure(api_key=api_key)
+
+    # Create model AFTER configuration
+    _MODEL = genai.GenerativeModel(
+        model_name="gemini-1.5-flash"
+    )
 
 
-# -----------------------------------
-# 2. Build Prompt
-# -----------------------------------
-def build_skill_reason_prompt(known_skills: List[str], missing_skills: List[str]) -> str:
-    return f"""
-You are an AI HR Analyst.
+def get_skill_reasoning(matched_skills, missing_skills):
+    """
+    Uses Gemini to explain missing skills and recommend courses.
+    Assumes configure_gemini() has already been called.
+    """
 
-Given the candidate's known skills and missing job skills:
+    if _MODEL is None:
+        raise RuntimeError(
+            "Gemini is not configured. Call configure_gemini() first."
+        )
 
-KNOWN SKILLS:
-{known_skills}
+    prompt = f"""
+You are an AI career advisor.
 
-MISSING SKILLS:
+Matched skills:
+{matched_skills}
+
+Missing skills:
 {missing_skills}
 
-TASK:
-For EACH missing skill:
-1. Tell if this missing skill is a subskill, specialization, tool, or concept related to any known skills.
-2. If related, describe HOW it relates.
-3. Suggest 2 beginner-friendly online courses (Coursera/Udemy/Google) — ONLY course name & provider.
-4. Return STRICT JSON following this schema:
+For each missing skill:
+1. Explain how it relates to the matched skills (if applicable)
+2. Explain why it is important
+3. Suggest 2 learning courses (Coursera / Udemy)
+
+Respond ONLY in valid JSON with this format:
 
 {{
   "skill_name": {{
-    "related_to": "skill from known skills OR 'not related'",
-    "explanation": "why it is missing and how it relates",
+    "related_to": "skill or concept",
+    "explanation": "clear explanation",
     "courses": [
-        {{"title": "string", "provider": "string"}},
-        {{"title": "string", "provider": "string"}}
+      {{ "title": "course name", "provider": "platform" }},
+      {{ "title": "course name", "provider": "platform" }}
     ]
   }}
 }}
+"""
 
-IMPORTANT RULES:
-- Return JSON ONLY. No extra words.
-- Do not include markdown.
-- Keep responses concise and accurate.
-    """
+    response = _MODEL.generate_content(prompt)
 
-
-# -----------------------------------
-# 3. Call Gemini Model
-# -----------------------------------
-def get_skill_reasoning(known_skills: List[str], missing_skills: List[str]) -> Dict:
-    prompt = build_skill_reason_prompt(known_skills, missing_skills)
-
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
-
-    response = model.generate_content(prompt)
-
-    text = response.text.strip()
-
-    # Parse JSON safely
+    # Gemini returns text → parse safely
     try:
-        data = json.loads(text)
-        return data
-    except json.JSONDecodeError:
-        # try to clean up common issues
-        cleaned = text.replace("```json", "").replace("```", "")
-        try:
-            return json.loads(cleaned)
-        except:
-            return {"error": "Could not parse JSON", "raw_output": text}
+        return eval(response.text)
+    except Exception:
+        return {
+            "error": "Failed to parse Gemini response",
+            "raw_response": response.text
+        }
