@@ -2,6 +2,8 @@
 
 import google.generativeai as genai
 
+import json
+import re
 # Global model reference
 _MODEL = None
 
@@ -22,15 +24,8 @@ def configure_gemini(api_key: str):
 
 
 def get_skill_reasoning(matched_skills, missing_skills):
-    """
-    Uses Gemini to explain missing skills and recommend courses.
-    Assumes configure_gemini() has already been called.
-    """
-
     if _MODEL is None:
-        raise RuntimeError(
-            "Gemini is not configured. Call configure_gemini() first."
-        )
+        raise RuntimeError("Gemini is not configured")
 
     prompt = f"""
 You are an AI career advisor.
@@ -41,15 +36,10 @@ Matched skills:
 Missing skills:
 {missing_skills}
 
-For each missing skill:
-1. Explain how it relates to the matched skills (if applicable)
-2. Explain why it is important
-3. Suggest 2 learning courses (Coursera / Udemy)
-
-Respond ONLY in valid JSON with this format:
+Return ONLY valid JSON in this exact format:
 
 {{
-  "skill_name": {{
+  "SkillName": {{
     "related_to": "skill or concept",
     "explanation": "clear explanation",
     "courses": [
@@ -61,12 +51,12 @@ Respond ONLY in valid JSON with this format:
 """
 
     response = _MODEL.generate_content(prompt)
+    text = response.text.strip()
 
-    # Gemini returns text → parse safely
+    # 🔒 Extract JSON safely
     try:
-        return eval(response.text)
+        json_text = re.search(r"\{.*\}", text, re.S).group()
+        parsed = json.loads(json_text)
+        return parsed if isinstance(parsed, dict) else {}
     except Exception:
-        return {
-            "error": "Failed to parse Gemini response",
-            "raw_response": response.text
-        }
+        return {}

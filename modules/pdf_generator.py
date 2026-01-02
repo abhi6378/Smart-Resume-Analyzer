@@ -12,131 +12,163 @@ from reportlab.lib import colors
 from typing import Dict, List
 
 
-def generate_candidate_report(candidate: Dict, output_path: str):
-    """
-    Generates a clean, ATS-style PDF summary for a candidate.
+# modules/pdf_generator.py
 
-    candidate dict must contain:
-    - name
-    - email
-    - phone
-    - final_score
-    - matched_skills (list)
-    - missing_skills (list)
-    - reasoning (dict from Gemini)
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    ListFlowable,
+    ListItem
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.units import inch
+
+
+def generate_candidate_report(candidate_data: dict, output_path: str):
+    """
+    Generates a professional PDF report for a candidate.
+    This function is hardened against malformed LLM output.
     """
 
-    doc = SimpleDocTemplate(output_path, pagesize=A4)
+    doc = SimpleDocTemplate(
+        output_path,
+        pagesize=A4,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40,
+    )
+
     styles = getSampleStyleSheet()
 
-    # Custom styles
     title_style = ParagraphStyle(
-        "TitleStyle",
-        parent=styles["Heading1"],
+        name="TitleStyle",
         fontSize=18,
-        textColor=colors.HexColor("#222222"),
-        spaceAfter=10
+        spaceAfter=14,
+        alignment=TA_LEFT,
     )
 
     section_style = ParagraphStyle(
-        "SectionHeader",
-        parent=styles["Heading2"],
-        fontSize=14,
-        textColor=colors.HexColor("#004aad"),
-        spaceAfter=6
+        name="SectionStyle",
+        fontSize=13,
+        spaceBefore=12,
+        spaceAfter=6,
+        bold=True,
     )
 
-    paragraph_style = ParagraphStyle(
-        "Paragraph",
-        parent=styles["BodyText"],
-        fontSize=11,
-        leading=16,
-        textColor=colors.black,
-        alignment=TA_LEFT
-    )
+    normal_style = styles["Normal"]
 
     bullet_style = ParagraphStyle(
-        "Bullet",
-        parent=styles["BodyText"],
-        fontSize=11,
-        leading=14,
-        leftIndent=20
+        name="BulletStyle",
+        leftIndent=12,
+        spaceAfter=4,
     )
 
     content = []
 
-    # ------------------------------------------------
-    # Header
-    # ------------------------------------------------
-    content.append(Paragraph(f"Candidate Report: {candidate['name']}", title_style))
-    content.append(Paragraph(f"Email: {candidate['email']}", paragraph_style))
-    content.append(Paragraph(f"Phone: {candidate['phone']}", paragraph_style))
-    content.append(Spacer(1, 10))
+    # -------------------------------------------------
+    # Title
+    # -------------------------------------------------
+    content.append(Paragraph("Candidate Resume Analysis Report", title_style))
+    content.append(Spacer(1, 0.2 * inch))
 
-    # ------------------------------------------------
-    # Match Score
-    # ------------------------------------------------
-    content.append(Paragraph("Overall Match Score", section_style))
-    content.append(Paragraph(f"<b>{candidate['final_score']}% match</b>", paragraph_style))
-    content.append(Spacer(1, 15))
+    # -------------------------------------------------
+    # Basic Information
+    # -------------------------------------------------
+    content.append(Paragraph("<b>Name:</b> " + candidate_data.get("name", "N/A"), normal_style))
+    content.append(Paragraph("<b>Email:</b> " + candidate_data.get("email", "N/A"), normal_style))
+    content.append(Paragraph("<b>Phone:</b> " + candidate_data.get("phone", "N/A"), normal_style))
+    content.append(Spacer(1, 0.15 * inch))
 
-    # ------------------------------------------------
+    # -------------------------------------------------
+    # Score
+    # -------------------------------------------------
+    score = candidate_data.get("final_score", 0)
+    content.append(Paragraph("<b>Match Score:</b> {:.2f}%".format(score), normal_style))
+    content.append(Spacer(1, 0.2 * inch))
+
+    # -------------------------------------------------
     # Matched Skills
-    # ------------------------------------------------
+    # -------------------------------------------------
     content.append(Paragraph("Matched Skills", section_style))
 
-    if candidate["matched_skills"]:
-        for s in candidate["matched_skills"]:
-            content.append(Paragraph(f"• {s}", bullet_style))
+    matched_skills = candidate_data.get("matched_skills", [])
+    if matched_skills:
+        content.append(
+            ListFlowable(
+                [ListItem(Paragraph(skill, normal_style)) for skill in matched_skills],
+                bulletType="bullet",
+            )
+        )
     else:
-        content.append(Paragraph("No matched skills found.", paragraph_style))
+        content.append(Paragraph("No matched skills identified.", normal_style))
 
-    content.append(Spacer(1, 15))
+    content.append(Spacer(1, 0.2 * inch))
 
-    # ------------------------------------------------
+    # -------------------------------------------------
     # Missing Skills
-    # ------------------------------------------------
+    # -------------------------------------------------
     content.append(Paragraph("Missing Skills", section_style))
 
-    if candidate["missing_skills"]:
-        for s in candidate["missing_skills"]:
-            content.append(Paragraph(f"• {s}", bullet_style))
+    missing_skills = candidate_data.get("missing_skills", [])
+    if missing_skills:
+        content.append(
+            ListFlowable(
+                [ListItem(Paragraph(skill, normal_style)) for skill in missing_skills],
+                bulletType="bullet",
+            )
+        )
     else:
-        content.append(Paragraph("None.", paragraph_style))
+        content.append(Paragraph("No missing skills identified.", normal_style))
 
-    content.append(Spacer(1, 15))
+    content.append(Spacer(1, 0.25 * inch))
 
-    # ------------------------------------------------
-    # LLM Reasoning from Gemini
-    # ------------------------------------------------
-    content.append(Paragraph("AI Reasoning Summary", section_style))
+    # -------------------------------------------------
+    # AI Reasoning (HARDENED)
+    # -------------------------------------------------
+    content.append(Paragraph("AI Skill Gap Analysis & Course Recommendations", section_style))
 
-    reasoning = candidate.get("reasoning", {})
+    reasoning = candidate_data.get("reasoning", {})
 
-    if reasoning:
+    # Defensive check: reasoning must be dict
+    if isinstance(reasoning, dict) and reasoning:
         for skill, details in reasoning.items():
-            content.append(Paragraph(f"<b>{skill}</b>", paragraph_style))
-            content.append(Paragraph(f"Related to: {details['related_to']}", bullet_style))
-            content.append(Paragraph(f"Explanation: {details['explanation']}", bullet_style))
-            content.append(Spacer(1, 5))
-    else:
-        content.append(Paragraph("No reasoning available.", paragraph_style))
 
-    content.append(Spacer(1, 15))
+            # Defensive check: details must be dict
+            if not isinstance(details, dict):
+                continue
 
-    # ------------------------------------------------
-    # Course Recommendations
-    # ------------------------------------------------
-    content.append(Paragraph("Recommended Courses", section_style))
-
-    if reasoning:
-        for skill, details in reasoning.items():
+            related_to = details.get("related_to", "N/A")
+            explanation = details.get("explanation", "No explanation available.")
             courses = details.get("courses", [])
-            content.append(Paragraph(f"<b>{skill}</b>", paragraph_style))
 
-            for c in courses:
-                content.append(Paragraph(f"• {c['title']} ({c['provider']})", bullet_style))
+            content.append(Spacer(1, 0.1 * inch))
+            content.append(Paragraph(f"<b>{skill}</b>", normal_style))
+            content.append(Paragraph(f"Related to: {related_to}", bullet_style))
+            content.append(Paragraph(explanation, normal_style))
 
-            content.append(Spacer(1, 8))
+            if isinstance(courses, list) and courses:
+                content.append(Paragraph("Recommended Courses:", bullet_style))
+                for course in courses:
+                    if not isinstance(course, dict):
+                        continue
+                    title = course.get("title", "Unknown Course")
+                    provider = course.get("provider", "Unknown Provider")
+                    content.append(
+                        Paragraph(f"- {title} ({provider})", bullet_style)
+                    )
+    else:
+        content.append(
+            Paragraph(
+                "AI reasoning not available or could not be generated.",
+                normal_style
+            )
+        )
 
+    # -------------------------------------------------
+    # Build PDF
+    # -------------------------------------------------
     doc.build(content)
