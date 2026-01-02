@@ -168,7 +168,7 @@ def generate_candidate_report(candidate_data: dict, output_path: str):
             )
         )
 
-    # -------------------------------------------------
+    # ----------------------------------------------s---
     # Build PDF
     # -------------------------------------------------
     doc.build(content)
