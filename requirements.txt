@@ -1,19 +1,23 @@
+# ================================
+# Smart Resume Analyzer
+# Python 3.10 – 3.11 only
+# ================================
+
 # UI
 streamlit>=1.30.0,<2.0
 
-# Resume Parsing (Cloud-safe)
-pdfplumber>=0.11.0
+# NLP & Resume Parsing
+spacy>=3.7.0,<4.0
+pymupdf>=1.23.0,<1.24.0   # fitz (NOT compatible with Python 3.12)
 phonenumbers>=8.13.0
 
-
-# NLP & ML
-spacy>=3.7.0,<4.0
+# Machine Learning & Similarity
 scikit-learn>=1.4.0,<2.0
 sentence-transformers>=2.7.0
 numpy>=1.24.0
 pandas>=2.0.0
 
-# LLM
+# LLM (Gemini)
 google-generativeai>=0.6.0
 
 # PDF Generation
@@ -21,4 +25,3 @@ reportlab>=4.0.0
 
 # Utilities
 tqdm>=4.65.0
-
