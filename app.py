@@ -206,10 +206,7 @@ elif choice == "📊 Analyze Candidates":
 
                 reasoning = {}
                 if missing:
-                    reasoning = llm_reasoner.get_skill_reasoning(
-                       matched_skills=matched,
-                       missing_skills=missing
-                    )
+                    reasoning = llm_reasoner.get_skill_reasoning(matched, missing)
 
                 name = parsed["name"] or os.path.basename(resume_path)
                 pdf_path = os.path.join(
